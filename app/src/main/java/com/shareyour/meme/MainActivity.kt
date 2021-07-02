@@ -12,6 +12,7 @@ import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.os.StrictMode
 import android.view.Menu
 import android.view.MenuItem
@@ -153,8 +154,11 @@ class MainActivity : AppCompatActivity(){
         val request = DownloadManager.Request(Uri.parse(url))
         request.setTitle(title)
         request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-        val folder = "/Meme"
-        request.setDestinationInExternalPublicDir(folder, "$title.jpg")
+        try{
+            request.setDestinationInExternalPublicDir("/Meme", "$title.jpg")
+        }catch (e:Exception){
+            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS,title+".jpg");
+        }
 
         request.setMimeType("image/*")
         var downloadManager:DownloadManager = this.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
