@@ -3,6 +3,7 @@ package com.shareyour.meme
 import APIClient
 import android.Manifest
 import android.app.DownloadManager
+import android.content.ContentValues.TAG
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -14,6 +15,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.os.StrictMode
+import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -29,6 +31,9 @@ import com.bumptech.glide.load.DataSource
 import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.target.Target
+import com.google.android.gms.ads.*
+import com.google.android.gms.ads.interstitial.InterstitialAd
+import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 import java.io.File
 import java.io.FileOutputStream
 import java.lang.Exception
@@ -36,6 +41,7 @@ import java.lang.RuntimeException
 import java.text.SimpleDateFormat
 import java.util.*
 
+const val AD_UNIT_ID = "ca-app-pub-7419751706380309/3642459166"
 
 class MainActivity : AppCompatActivity(){
     lateinit var shareBtn:Button
@@ -48,6 +54,7 @@ class MainActivity : AppCompatActivity(){
     lateinit var bitmap: Bitmap
     lateinit var builder:StrictMode.VmPolicy.Builder
     lateinit var drawable: BitmapDrawable
+    private var mInterstitialAd: InterstitialAd? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,6 +67,9 @@ class MainActivity : AppCompatActivity(){
 
         progressBar = findViewById(R.id.progressBar)
 
+        //Initialize MobileAds
+        MobileAds.initialize(this) {}
+
         loadMeme()
 
         shareBtn.setOnClickListener {
@@ -69,33 +79,6 @@ class MainActivity : AppCompatActivity(){
         nextBtn.setOnClickListener {
            loadMeme()
         }
-    }
-
-    private fun share() {
-        builder = StrictMode.VmPolicy.Builder()
-        StrictMode.setVmPolicy(builder.build())
-
-        drawable = imageView.drawable as BitmapDrawable
-        bitmap = drawable.bitmap
-
-        val file = File(externalCacheDir,"meme"+".png")
-        val intent:Intent
-
-        try {
-            fileOutputStream = FileOutputStream(file)
-            bitmap.compress(Bitmap.CompressFormat.JPEG,100,fileOutputStream)
-
-            fileOutputStream.flush()
-            fileOutputStream.close()
-
-            intent = Intent(Intent.ACTION_SEND)
-            intent.type = "image/*"
-            intent.putExtra(Intent.EXTRA_STREAM,Uri.fromFile(file))
-            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        }catch (e:Exception){
-            throw RuntimeException(e)
-        }
-        startActivity(Intent.createChooser(intent,"share image"))
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -128,6 +111,79 @@ class MainActivity : AppCompatActivity(){
             }
         }
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+    }
+
+    private fun share() {
+        builder = StrictMode.VmPolicy.Builder()
+        StrictMode.setVmPolicy(builder.build())
+
+        drawable = imageView.drawable as BitmapDrawable
+        bitmap = drawable.bitmap
+
+        val file = File(externalCacheDir,"meme"+".png")
+        val intent:Intent
+
+        try {
+            fileOutputStream = FileOutputStream(file)
+            bitmap.compress(Bitmap.CompressFormat.JPEG,100,fileOutputStream)
+
+            fileOutputStream.flush()
+            fileOutputStream.close()
+
+            intent = Intent(Intent.ACTION_SEND)
+            intent.type = "image/*"
+            intent.putExtra(Intent.EXTRA_STREAM,Uri.fromFile(file))
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }catch (e:Exception){
+            throw RuntimeException(e)
+        }
+        startActivity(Intent.createChooser(intent,"share image"))
+    }
+
+    override fun onStart() {
+        super.onStart()
+        var adRequest = AdRequest.Builder().build()
+
+        InterstitialAd.load(
+            this,
+            AD_UNIT_ID,
+            adRequest,
+            object : InterstitialAdLoadCallback() {
+                override fun onAdFailedToLoad(adError: LoadAdError) {
+                    Log.i(TAG, adError?.message)
+                    mInterstitialAd = null
+                    val error = "domain: ${adError.domain}, code: ${adError.code}, " +
+                            "message: ${adError.message}"
+                    Toast.makeText(this@MainActivity,"onAdFailedToLoad() with error $error", Toast.LENGTH_SHORT).show()
+                }
+
+                override fun onAdLoaded(interstitialAd: InterstitialAd) {
+                    Log.i(TAG, "Ad was loaded.")
+                    mInterstitialAd = interstitialAd
+                    mInterstitialAd?.fullScreenContentCallback = object : FullScreenContentCallback() {
+                        override fun onAdDismissedFullScreenContent() {
+                            Log.i(TAG, "Ad was dismissed.")
+                            mInterstitialAd = null
+                        }
+
+                        override fun onAdFailedToShowFullScreenContent(adError: AdError?) {
+                            Log.i(TAG, "Ad failed to show.")
+                            mInterstitialAd = null
+                        }
+
+                        override fun onAdShowedFullScreenContent() {
+                            Log.i(TAG, "Ad showed fullscreen content.")
+                        }
+                    }
+
+                    if (mInterstitialAd != null) {
+                        mInterstitialAd?.show(this@MainActivity)
+                    } else {
+                        Toast.makeText(this@MainActivity, "Ad wasn't loaded.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        )
     }
 
     private fun requestPermission() {
