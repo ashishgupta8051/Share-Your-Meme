@@ -11,10 +11,7 @@ import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.net.Uri
-import android.os.Build
-import android.os.Bundle
-import android.os.Environment
-import android.os.StrictMode
+import android.os.*
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
@@ -34,6 +31,7 @@ import com.bumptech.glide.request.target.Target
 import com.google.android.gms.ads.*
 import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
+import com.shareyour.meme.connection.CheckInternetConnection
 import java.io.File
 import java.io.FileOutputStream
 import java.lang.Exception
@@ -47,6 +45,7 @@ class MainActivity : AppCompatActivity(){
     lateinit var shareBtn:Button
     lateinit var nextBtn:Button
     lateinit var imageView:ImageView
+    lateinit var wifi:ImageView
     lateinit var progressBar:ProgressBar
     var url:String? = null
     private val PERMISSION:Int = 123;
@@ -55,6 +54,7 @@ class MainActivity : AppCompatActivity(){
     lateinit var builder:StrictMode.VmPolicy.Builder
     lateinit var drawable: BitmapDrawable
     private var mInterstitialAd: InterstitialAd? = null
+    private lateinit var checkInternetConnection:CheckInternetConnection
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -64,20 +64,31 @@ class MainActivity : AppCompatActivity(){
         nextBtn = findViewById(R.id.nextBtn)
 
         imageView = findViewById(R.id.imageView)
+        wifi = findViewById(R.id.mainActivityWifi)
 
         progressBar = findViewById(R.id.progressBar)
 
         //Initialize MobileAds
         MobileAds.initialize(this) {}
 
-        loadMeme()
+        //CHeck internet connection
+        checkConnection()
 
         shareBtn.setOnClickListener {
            share()
         }
 
         nextBtn.setOnClickListener {
-           loadMeme()
+            checkInternetConnection.observe(this, { isConnected ->
+                if (isConnected){
+                    wifi.visibility = View.GONE
+                    loadMeme()
+                }else{
+                    Glide.with(this).load("").into(imageView)
+                    wifi.visibility = View.VISIBLE
+                }
+
+            })
         }
     }
 
@@ -87,19 +98,27 @@ class MainActivity : AppCompatActivity(){
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == R.id.download){
-            if (Build.VERSION.SDK_INT >= 23){
-                if (ContextCompat.checkSelfPermission(this,Manifest.permission.WRITE_EXTERNAL_STORAGE) ==
-                    PackageManager.PERMISSION_GRANTED) {
-                    savePostImage();
+        return when(item.itemId){
+            R.id.download ->{
+                if (Build.VERSION.SDK_INT >= 23){
+                    if (ContextCompat.checkSelfPermission(this,Manifest.permission.WRITE_EXTERNAL_STORAGE) ==
+                        PackageManager.PERMISSION_GRANTED) {
+                        savePostImage();
+                    }else {
+                        requestPermission();
+                    }
                 }else {
-                    requestPermission();
+                    savePostImage();
                 }
-            }else {
-                savePostImage();
+                return true
             }
+            R.id.generate_meme ->{
+                startActivity(Intent(this,MemeTemplates::class.java))
+                return true
+            }
+
+            else -> super.onOptionsItemSelected(item)
         }
-        return super.onOptionsItemSelected(item)
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
@@ -113,35 +132,22 @@ class MainActivity : AppCompatActivity(){
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
     }
 
-    private fun share() {
-        builder = StrictMode.VmPolicy.Builder()
-        StrictMode.setVmPolicy(builder.build())
+    private fun checkConnection() {
+        checkInternetConnection = CheckInternetConnection(application)
 
-        drawable = imageView.drawable as BitmapDrawable
-        bitmap = drawable.bitmap
-
-        val file = File(externalCacheDir,"meme"+".png")
-        val intent:Intent
-
-        try {
-            fileOutputStream = FileOutputStream(file)
-            bitmap.compress(Bitmap.CompressFormat.JPEG,100,fileOutputStream)
-
-            fileOutputStream.flush()
-            fileOutputStream.close()
-
-            intent = Intent(Intent.ACTION_SEND)
-            intent.type = "image/*"
-            intent.putExtra(Intent.EXTRA_STREAM,Uri.fromFile(file))
-            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        }catch (e:Exception){
-            throw RuntimeException(e)
-        }
-        startActivity(Intent.createChooser(intent,"share image"))
+        checkInternetConnection.observe(this, { isConnected ->
+            if (isConnected){
+                wifi.visibility = View.GONE
+                loadMeme()
+                loadAds()
+            }else{
+                Glide.with(this).load("").into(imageView)
+                wifi.visibility = View.VISIBLE
+            }
+        })
     }
 
-    override fun onStart() {
-        super.onStart()
+    private fun loadAds() {
         var adRequest = AdRequest.Builder().build()
 
         InterstitialAd.load(
@@ -154,7 +160,7 @@ class MainActivity : AppCompatActivity(){
                     mInterstitialAd = null
                     val error = "domain: ${adError.domain}, code: ${adError.code}, " +
                             "message: ${adError.message}"
-                    Toast.makeText(this@MainActivity,"onAdFailedToLoad() with error $error", Toast.LENGTH_SHORT).show()
+                    Log.e("Failed to add Loaded","Failed")
                 }
 
                 override fun onAdLoaded(interstitialAd: InterstitialAd) {
@@ -186,6 +192,33 @@ class MainActivity : AppCompatActivity(){
         )
     }
 
+    private fun share() {
+        builder = StrictMode.VmPolicy.Builder()
+        StrictMode.setVmPolicy(builder.build())
+
+        drawable = imageView.drawable as BitmapDrawable
+        bitmap = drawable.bitmap
+
+        val file = File(externalCacheDir,"meme"+".png")
+        val intent:Intent
+
+        try {
+            fileOutputStream = FileOutputStream(file)
+            bitmap.compress(Bitmap.CompressFormat.JPEG,100,fileOutputStream)
+
+            fileOutputStream.flush()
+            fileOutputStream.close()
+
+            intent = Intent(Intent.ACTION_SEND)
+            intent.type = "image/*"
+            intent.putExtra(Intent.EXTRA_STREAM,Uri.fromFile(file))
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }catch (e:Exception){
+            throw RuntimeException(e)
+        }
+        startActivity(Intent.createChooser(intent,"share image"))
+    }
+
     private fun requestPermission() {
         if (ActivityCompat.shouldShowRequestPermissionRationale(this,Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
             AlertDialog.Builder(this)
@@ -211,7 +244,7 @@ class MainActivity : AppCompatActivity(){
         request.setTitle(title)
         request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
         try{
-            request.setDestinationInExternalPublicDir("/Meme", "$title.jpg")
+            request.setDestinationInExternalPublicDir("/Share Your Meme/Memes", "$title.jpg")
         }catch (e:Exception){
             request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS,title+".jpg");
         }
@@ -225,7 +258,6 @@ class MainActivity : AppCompatActivity(){
 
     private fun loadMeme() {
         val url = "https://meme-api.herokuapp.com/gimme"
-
         val jsonObjectRequest = JsonObjectRequest(
             Request.Method.GET, url, null,
             { response ->

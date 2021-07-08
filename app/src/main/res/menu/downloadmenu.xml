@@ -6,7 +6,12 @@
         android:id="@+id/download"
         app:showAsAction="ifRoom"
         android:title="Download"
-        android:icon="@drawable/download"
-        />
+        android:icon="@drawable/download" />
+
+    <item
+        android:id="@+id/generate_meme"
+        app:showAsAction="ifRoom"
+        android:title="Generate Meme"
+        android:icon="@drawable/ic_baseline_arrow_forward_24" />
 
 </menu>
