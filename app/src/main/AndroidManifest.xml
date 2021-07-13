@@ -8,11 +8,11 @@
 
     <application
         android:allowBackup="true"
-        android:hardwareAccelerated="true"
         android:icon="@mipmap/application_icon"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/application_icon_round"
         android:supportsRtl="true"
+        android:hardwareAccelerated="true"
         android:theme="@style/Theme.Meme">
         <activity android:name=".MemeCreatePage"
             android:hardwareAccelerated="true"/>
@@ -21,7 +21,7 @@
 
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-7419751706380309~7581704175" />
+            android:value="ca-app-pub-6045011449826065~5595126084"/>
 
         <activity
             android:name=".MainActivity"

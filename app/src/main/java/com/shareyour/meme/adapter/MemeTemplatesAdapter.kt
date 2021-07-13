@@ -61,6 +61,7 @@ class MemeTemplatesAdapter(private val dataList:MutableList<Meme>,private val ac
             intent.putExtra("height",meme.height)
             intent.putExtra("box_count",meme.box_count)
             activity.startActivity(intent)
+            activity.finish()
         })
     }
 

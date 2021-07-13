@@ -8,7 +8,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.*
@@ -34,12 +36,10 @@ import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 import com.shareyour.meme.connection.CheckInternetConnection
 import java.io.File
 import java.io.FileOutputStream
-import java.lang.Exception
-import java.lang.RuntimeException
 import java.text.SimpleDateFormat
 import java.util.*
 
-const val AD_UNIT_ID = "ca-app-pub-7419751706380309/3642459166"
+const val AD_UNIT_ID = "ca-app-pub-6045011449826065/5318674358"
 
 class MainActivity : AppCompatActivity(){
     lateinit var shareBtn:Button
@@ -53,12 +53,18 @@ class MainActivity : AppCompatActivity(){
     lateinit var bitmap: Bitmap
     lateinit var builder:StrictMode.VmPolicy.Builder
     lateinit var drawable: BitmapDrawable
-    private var mInterstitialAd: InterstitialAd? = null
     private lateinit var checkInternetConnection:CheckInternetConnection
+    private lateinit var alertDialog: AlertDialog
+    private var mInterstitialAd: InterstitialAd? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        checkInternetConnection = CheckInternetConnection(application)
+
+        //Initialize MobileAds
+        MobileAds.initialize(this) {}
 
         shareBtn = findViewById(R.id.shareBtn)
         nextBtn = findViewById(R.id.nextBtn)
@@ -68,28 +74,28 @@ class MainActivity : AppCompatActivity(){
 
         progressBar = findViewById(R.id.progressBar)
 
-        //Initialize MobileAds
-        MobileAds.initialize(this) {}
-
-        //CHeck internet connection
-        checkConnection()
-
         shareBtn.setOnClickListener {
            share()
         }
 
         nextBtn.setOnClickListener {
-            checkInternetConnection.observe(this, { isConnected ->
-                if (isConnected){
-                    wifi.visibility = View.GONE
-                    loadMeme()
-                }else{
-                    Glide.with(this).load("").into(imageView)
-                    wifi.visibility = View.VISIBLE
-                }
-
-            })
+            loadMeme()
         }
+
+        //Create Alert Dialog
+        val builder:AlertDialog.Builder = AlertDialog.Builder(this)
+        val view:View = layoutInflater.inflate(R.layout.internet_alert_dialog,null)
+
+        builder.setView(view)
+        alertDialog = builder.setCancelable(false).create()
+        alertDialog.window!!.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        alertDialog.window!!.attributes.windowAnimations = android.R.style.Animation_Toast
+    }
+
+    override fun onStart() {
+        super.onStart()
+        //Check internet connection
+        checkConnection()
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -114,6 +120,7 @@ class MainActivity : AppCompatActivity(){
             }
             R.id.generate_meme ->{
                 startActivity(Intent(this,MemeTemplates::class.java))
+                finish()
                 return true
             }
 
@@ -132,17 +139,21 @@ class MainActivity : AppCompatActivity(){
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
     }
 
-    private fun checkConnection() {
-        checkInternetConnection = CheckInternetConnection(application)
+    override fun onBackPressed() {
+        finishAffinity()
+    }
 
+    private fun checkConnection() {
         checkInternetConnection.observe(this, { isConnected ->
             if (isConnected){
-                wifi.visibility = View.GONE
+                alertDialog.dismiss()
+                //Load Meme
                 loadMeme()
+                //Load Ads
                 loadAds()
             }else{
                 Glide.with(this).load("").into(imageView)
-                wifi.visibility = View.VISIBLE
+                alertDialog.show()
             }
         })
     }
@@ -151,45 +162,40 @@ class MainActivity : AppCompatActivity(){
         var adRequest = AdRequest.Builder().build()
 
         InterstitialAd.load(
-            this,
-            AD_UNIT_ID,
-            adRequest,
+            this, AD_UNIT_ID, adRequest,
             object : InterstitialAdLoadCallback() {
                 override fun onAdFailedToLoad(adError: LoadAdError) {
-                    Log.i(TAG, adError?.message)
+                    Log.d(TAG, adError?.message)
                     mInterstitialAd = null
                     val error = "domain: ${adError.domain}, code: ${adError.code}, " +
                             "message: ${adError.message}"
-                    Log.e("Failed to add Loaded","Failed")
+                    Toast.makeText(this@MainActivity, "onAdFailedToLoad() with error $error",Toast.LENGTH_SHORT).show()
                 }
 
                 override fun onAdLoaded(interstitialAd: InterstitialAd) {
-                    Log.i(TAG, "Ad was loaded.")
+                    Log.d(TAG, "Ad was loaded.")
                     mInterstitialAd = interstitialAd
+
                     mInterstitialAd?.fullScreenContentCallback = object : FullScreenContentCallback() {
                         override fun onAdDismissedFullScreenContent() {
-                            Log.i(TAG, "Ad was dismissed.")
+                            Log.e(TAG, "Ad was dismissed.")
                             mInterstitialAd = null
                         }
 
                         override fun onAdFailedToShowFullScreenContent(adError: AdError?) {
-                            Log.i(TAG, "Ad failed to show.")
+                            Log.e(TAG, "Ad failed to show.")
                             mInterstitialAd = null
                         }
 
                         override fun onAdShowedFullScreenContent() {
-                            Log.i(TAG, "Ad showed fullscreen content.")
+                            Log.e(TAG, "Ad showed fullscreen content.")
                         }
                     }
-
-                    if (mInterstitialAd != null) {
-                        mInterstitialAd?.show(this@MainActivity)
-                    } else {
-                        Toast.makeText(this@MainActivity, "Ad wasn't loaded.", Toast.LENGTH_SHORT).show()
-                    }
+                    mInterstitialAd?.show(this@MainActivity)
                 }
             }
         )
+
     }
 
     private fun share() {
@@ -293,6 +299,5 @@ class MainActivity : AppCompatActivity(){
             })
 
         APIClient.getInstance(this).addToRequestQueue(jsonObjectRequest)
-
     }
 }

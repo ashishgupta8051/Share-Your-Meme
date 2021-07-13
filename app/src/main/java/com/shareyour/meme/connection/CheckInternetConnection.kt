@@ -27,7 +27,6 @@ class CheckInternetConnection(private val connectivityManager: ConnectivityManag
             super.onLost(network)
             postValue(false)
         }
-
     }
 
     @RequiresApi(Build.VERSION_CODES.LOLLIPOP)

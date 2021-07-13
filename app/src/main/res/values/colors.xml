@@ -7,4 +7,9 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <color name="share_btn_color">#d35400</color>
+    <color name="next_btn_color">#c0392b</color>
+    <color name="wifi_background_color">#EEE3AB</color>
+    <color name="wifi_text_color">#554911</color>
 </resources>
