@@ -12,20 +12,12 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/application_icon_round"
         android:supportsRtl="true"
-        android:hardwareAccelerated="true"
         android:theme="@style/Theme.Meme">
-        <activity android:name=".MemeCreatePage"
-            android:hardwareAccelerated="true"/>
-        <activity android:name=".MemeTemplates"
-            android:hardwareAccelerated="true"/>
-
-        <meta-data
-            android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-6045011449826065~5595126084"/>
+        <activity android:name=".MemeCreatePage"/>
+        <activity android:name=".MemeTemplates"/>
 
         <activity
-            android:name=".MainActivity"
-            android:hardwareAccelerated="true">
+            android:name=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

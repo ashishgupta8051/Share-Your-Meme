@@ -1,24 +1,28 @@
 package com.shareyour.meme
 
-import APIClient
 import android.Manifest
 import android.app.DownloadManager
-import android.content.ContentValues.TAG
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
-import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
+import android.net.ConnectivityManager
 import android.net.Uri
-import android.os.*
-import android.util.Log
+import android.os.Build
+import android.os.Bundle
+import android.os.Environment
+import android.os.StrictMode
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
-import android.widget.*
+import android.widget.Button
+import android.widget.ImageView
+import android.widget.ProgressBar
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -30,16 +34,13 @@ import com.bumptech.glide.load.DataSource
 import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.target.Target
-import com.google.android.gms.ads.*
-import com.google.android.gms.ads.interstitial.InterstitialAd
-import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
+import com.shareyour.meme.apiclient.APIClient
 import com.shareyour.meme.connection.CheckInternetConnection
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 
-const val AD_UNIT_ID = "ca-app-pub-6045011449826065/5318674358"
 
 class MainActivity : AppCompatActivity(){
     lateinit var shareBtn:Button
@@ -53,18 +54,13 @@ class MainActivity : AppCompatActivity(){
     lateinit var bitmap: Bitmap
     lateinit var builder:StrictMode.VmPolicy.Builder
     lateinit var drawable: BitmapDrawable
-    private lateinit var checkInternetConnection:CheckInternetConnection
-    private lateinit var alertDialog: AlertDialog
-    private var mInterstitialAd: InterstitialAd? = null
+    private var broadcastReceiver: BroadcastReceiver? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        checkInternetConnection = CheckInternetConnection(application)
-
-        //Initialize MobileAds
-        MobileAds.initialize(this) {}
+        broadcastReceiver = CheckInternetConnection()
 
         shareBtn = findViewById(R.id.shareBtn)
         nextBtn = findViewById(R.id.nextBtn)
@@ -81,21 +77,18 @@ class MainActivity : AppCompatActivity(){
         nextBtn.setOnClickListener {
             loadMeme()
         }
-
-        //Create Alert Dialog
-        val builder:AlertDialog.Builder = AlertDialog.Builder(this)
-        val view:View = layoutInflater.inflate(R.layout.internet_alert_dialog,null)
-
-        builder.setView(view)
-        alertDialog = builder.setCancelable(false).create()
-        alertDialog.window!!.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        alertDialog.window!!.attributes.windowAnimations = android.R.style.Animation_Toast
     }
 
     override fun onStart() {
         super.onStart()
-        //Check internet connection
-        checkConnection()
+        loadMeme()
+        var intentFilter = IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION)
+        registerReceiver(broadcastReceiver, intentFilter)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        unregisterReceiver(broadcastReceiver);
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -141,61 +134,6 @@ class MainActivity : AppCompatActivity(){
 
     override fun onBackPressed() {
         finishAffinity()
-    }
-
-    private fun checkConnection() {
-        checkInternetConnection.observe(this, { isConnected ->
-            if (isConnected){
-                alertDialog.dismiss()
-                //Load Meme
-                loadMeme()
-                //Load Ads
-                loadAds()
-            }else{
-                Glide.with(this).load("").into(imageView)
-                alertDialog.show()
-            }
-        })
-    }
-
-    private fun loadAds() {
-        var adRequest = AdRequest.Builder().build()
-
-        InterstitialAd.load(
-            this, AD_UNIT_ID, adRequest,
-            object : InterstitialAdLoadCallback() {
-                override fun onAdFailedToLoad(adError: LoadAdError) {
-                    Log.d(TAG, adError?.message)
-                    mInterstitialAd = null
-                    val error = "domain: ${adError.domain}, code: ${adError.code}, " +
-                            "message: ${adError.message}"
-                    Toast.makeText(this@MainActivity, "onAdFailedToLoad() with error $error",Toast.LENGTH_SHORT).show()
-                }
-
-                override fun onAdLoaded(interstitialAd: InterstitialAd) {
-                    Log.d(TAG, "Ad was loaded.")
-                    mInterstitialAd = interstitialAd
-
-                    mInterstitialAd?.fullScreenContentCallback = object : FullScreenContentCallback() {
-                        override fun onAdDismissedFullScreenContent() {
-                            Log.e(TAG, "Ad was dismissed.")
-                            mInterstitialAd = null
-                        }
-
-                        override fun onAdFailedToShowFullScreenContent(adError: AdError?) {
-                            Log.e(TAG, "Ad failed to show.")
-                            mInterstitialAd = null
-                        }
-
-                        override fun onAdShowedFullScreenContent() {
-                            Log.e(TAG, "Ad showed fullscreen content.")
-                        }
-                    }
-                    mInterstitialAd?.show(this@MainActivity)
-                }
-            }
-        )
-
     }
 
     private fun share() {

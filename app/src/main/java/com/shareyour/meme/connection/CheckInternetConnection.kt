@@ -1,44 +1,47 @@
 package com.shareyour.meme.connection
 
-import android.app.Application
+import android.content.BroadcastReceiver
+import android.content.ContentValues.TAG
 import android.content.Context
-import android.net.ConnectivityManager
-import android.net.Network
-import android.net.NetworkRequest
-import android.os.Build
-import androidx.annotation.RequiresApi
-import androidx.lifecycle.LiveData
+import android.content.Intent
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.util.Log
+import android.view.LayoutInflater
+import android.view.View
+import android.widget.Button
+import androidx.appcompat.app.AlertDialog
+import com.shareyour.meme.R
+import com.shareyour.meme.utils.NetworkUtils
 
-class CheckInternetConnection(private val connectivityManager: ConnectivityManager) : LiveData<Boolean>() {
 
-    constructor(application: Application) : this(
-        application.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-    )
+class CheckInternetConnection : BroadcastReceiver() {
 
-    private val networkCallback = @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
-    object : ConnectivityManager.NetworkCallback(){
+    override fun onReceive(context: Context?, intent: Intent?) {
+        var result = context?.let { NetworkUtils().getNetworkStatus(it) }
 
-        override fun onAvailable(network: Network) {
-            super.onAvailable(network)
-            postValue(true)
+        //Create Alert Dialog
+        var builder:AlertDialog.Builder = context?.let { AlertDialog.Builder(it) }!!
+        var view:View = LayoutInflater.from(context).inflate(R.layout.internet_alert_dialog,null)
+        builder.setView(view)
+
+        var button: Button = view.findViewById(R.id.retry_btn)
+
+        var alertDialog = builder.setCancelable(false).create()
+        alertDialog.window!!.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        alertDialog.window!!.attributes.windowAnimations = android.R.style.Animation_Toast
+
+        button.setOnClickListener {
+            alertDialog.dismiss()
+            onReceive(context,intent)
         }
 
-        override fun onLost(network: Network) {
-            super.onLost(network)
-            postValue(false)
+        Log.e(TAG, result.toString())
+        if (result == 0){
+            alertDialog.show()
+        }else if(result == 1 || result == 2){
+            alertDialog.dismiss()
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
-    override fun onActive() {
-        super.onActive()
-        val builder = NetworkRequest.Builder()
-        connectivityManager.registerNetworkCallback(builder.build(), networkCallback)
-    }
-
-    @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
-    override fun onInactive() {
-        super.onInactive()
-        connectivityManager.unregisterNetworkCallback(networkCallback)
-    }
 }

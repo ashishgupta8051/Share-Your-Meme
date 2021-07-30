@@ -1,12 +1,16 @@
 package com.shareyour.meme
 
 import android.app.DownloadManager
+import android.content.BroadcastReceiver
 import android.content.ContentValues.TAG
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.Drawable
+import android.net.ConnectivityManager
 import android.net.Uri
 import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
@@ -17,31 +21,26 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.widget.ImageView
+import android.widget.ProgressBar
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.android.volley.AuthFailureError
-import com.android.volley.Request
-import com.android.volley.Response
-import com.android.volley.VolleyError
-import com.android.volley.toolbox.JsonObjectRequest
 import com.bumptech.glide.Glide
-import com.google.android.gms.ads.*
-import com.google.android.gms.ads.interstitial.InterstitialAd
-import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
+import com.bumptech.glide.load.DataSource
+import com.bumptech.glide.load.engine.GlideException
+import com.bumptech.glide.request.RequestListener
+import com.bumptech.glide.request.target.Target
 import com.shareyour.meme.connection.CheckInternetConnection
-import org.json.JSONObject
 import java.lang.Exception
-import java.security.Permission
 import java.text.SimpleDateFormat
 import java.util.*
-import java.util.jar.Manifest
 import kotlin.properties.Delegates
 
 class MemeCreatePage : AppCompatActivity() {
 
     private lateinit var imageView: ImageView
+    private lateinit var progressBar:ProgressBar
     private lateinit var url:String
     private lateinit var name:String
     private lateinit var id:String
@@ -49,9 +48,7 @@ class MemeCreatePage : AppCompatActivity() {
     private var height by Delegates.notNull<Int>()
     private var box_count by Delegates.notNull<Int>()
     private val PERMISSION = 123
-    private lateinit var checkInternetConnection: CheckInternetConnection
-    private lateinit var alertDialog: AlertDialog
-    private var mInterstitialAd: InterstitialAd? = null
+    private var broadcastReceiver: BroadcastReceiver? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -59,12 +56,10 @@ class MemeCreatePage : AppCompatActivity() {
 
         supportActionBar?.title = "Download Template"
 
-        checkInternetConnection = CheckInternetConnection(application)
-
-        //Initialize MobileAds
-        MobileAds.initialize(this) {}
+        broadcastReceiver = CheckInternetConnection()
 
         imageView = findViewById(R.id.get_meme_image)
+        progressBar = findViewById(R.id.memeCreateProgress)
 
         var intent = intent
         var extras = intent.extras
@@ -80,65 +75,40 @@ class MemeCreatePage : AppCompatActivity() {
             Log.e("Error","Value in null")
         }
 
-        //Create Alert Dialog
-        val builder: AlertDialog.Builder = AlertDialog.Builder(this)
-        val view: View = layoutInflater.inflate(R.layout.internet_alert_dialog,null)
-
-        builder.setView(view)
-        alertDialog = builder.setCancelable(false).create()
-        alertDialog.window!!.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        alertDialog.window!!.attributes.windowAnimations = android.R.style.Animation_Toast
-
-        checkInternetConnection.observe(this, { isConnected ->
-            if (isConnected){
-                alertDialog.dismiss()
-                Glide.with(this).load(url).into(imageView)
-                loadAds()
-            }else{
-                Glide.with(this).load("").into(imageView)
-                alertDialog.show()
+        Glide.with(this).load(url).listener(object : RequestListener<Drawable> {
+            override fun onLoadFailed(
+                e: GlideException?,
+                model: Any?,
+                target: Target<Drawable>?,
+                isFirstResource: Boolean
+            ): Boolean {
+                progressBar.visibility = View.GONE
+                return false
             }
-        })
+
+            override fun onResourceReady(
+                resource: Drawable?,
+                model: Any?,
+                target: Target<Drawable>?,
+                dataSource: DataSource?,
+                isFirstResource: Boolean
+            ): Boolean {
+                progressBar.visibility = View.GONE
+                return false
+            }
+
+        }).into(imageView)
     }
 
-    private fun loadAds() {
-        var adRequest = AdRequest.Builder().build()
+    override fun onStart() {
+        super.onStart()
+        var intentFilter = IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION)
+        registerReceiver(broadcastReceiver, intentFilter)
+    }
 
-        InterstitialAd.load(
-            this, AD_UNIT_ID, adRequest,
-            object : InterstitialAdLoadCallback() {
-                override fun onAdFailedToLoad(adError: LoadAdError) {
-                    Log.d(TAG, adError?.message)
-                    mInterstitialAd = null
-                    val error = "domain: ${adError.domain}, code: ${adError.code}, " +
-                            "message: ${adError.message}"
-                    Toast.makeText(this@MemeCreatePage, "onAdFailedToLoad() with error $error",Toast.LENGTH_SHORT).show()
-                }
-
-                override fun onAdLoaded(interstitialAd: InterstitialAd) {
-                    Log.d(TAG, "Ad was loaded.")
-                    mInterstitialAd = interstitialAd
-
-                    mInterstitialAd?.fullScreenContentCallback = object : FullScreenContentCallback() {
-                        override fun onAdDismissedFullScreenContent() {
-                            Log.e(TAG, "Ad was dismissed.")
-                            mInterstitialAd = null
-                        }
-
-                        override fun onAdFailedToShowFullScreenContent(adError: AdError?) {
-                            Log.e(TAG, "Ad failed to show.")
-                            mInterstitialAd = null
-                        }
-
-                        override fun onAdShowedFullScreenContent() {
-                            Log.e(TAG, "Ad showed fullscreen content.")
-                        }
-                    }
-                    mInterstitialAd?.show(this@MemeCreatePage)
-                }
-            }
-        )
-
+    override fun onStop() {
+        super.onStop()
+        unregisterReceiver(broadcastReceiver);
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {

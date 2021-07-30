@@ -1,3 +1,5 @@
+package com.shareyour.meme.apiclient
+
 import android.content.Context
 import com.android.volley.Request
 import com.android.volley.RequestQueue
@@ -16,7 +18,6 @@ class APIClient constructor(context: Context) {
     }
 
     private val requestQueue: RequestQueue by lazy {
-
         Volley.newRequestQueue(context.applicationContext)
     }
     fun <T> addToRequestQueue(req: Request<T>) {
